@@ -25,9 +25,9 @@ Trigger Sensor Soda ---> O-27
 Analog_agua -----------> I-33
 Bomba_Agua ------------> O-13
 Servo_motor -----------> O-32
-Bomba_Mistura ---------> O-22
+Motor_Mistura01 -------> O-22
 Resistência_Mist01 ----> O-04
-Bomba_Mistura02 -------> O-21
+Bomba_Mistura01 -------> O-21
 Motor_Mistura02 -------> O-19
 Resistência_Mist02 ----> O-18
 ---------------------------------
