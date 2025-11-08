@@ -33,6 +33,7 @@ Resistência_Mist02 ----> O-18
 """
 
 # // Declaração de váriaveis iniciais //
+Registrador_de_informacoes = [0, 0, 0, 0, 0, 0]
 
 Temporizador = [0]
 Etapa = "Step 00"
@@ -98,6 +99,7 @@ while True:
 
 
     if Botao_on__off == 1 and Etapa == "Step 00" :
+        Registrador_de_informacoes[0] = 1
         sleep_ms(200)
         print(f"O sistema está iniciando")
         sleep_ms(200)
@@ -201,6 +203,7 @@ while True:
                     medições_ok = True
                     Status_Sistema = "Next Step"
                     Etapa = "Step 01"
+                    Registrador_de_informacoes[1] = 1
 
     elif Etapa == "Step 01":
 
@@ -224,7 +227,7 @@ while True:
         while Status_Sistema == "Despejando Soda, após concluir aperte botão inciar":
             
             Motor_Mistura01.value(0)
-            
+            Registrador_de_informacoes[2] = 1
             ds1.convert_temp()         # Inicia a conversão de temperatura
             time.sleep_ms(750)        # Aguarda a conversão (750ms é o tempo típico)
 
@@ -254,6 +257,7 @@ while True:
     elif Etapa == "Step 02":
         
         print(f"Etapa 02 iniciada")
+        Registrador_de_informacoes[3] = 1
         
         Bomba_Mistura01.value(0)
         Trigger_Sensor_Oleo.value(1)
@@ -274,6 +278,7 @@ while True:
         if Status_Sistema == "Processo Soda concluído":
             
             print(f"Iniciando Processo de Mistura!")
+            Registrador_de_informacoes[4] = 1
 
             Motor_Mistura02.value(0)
             tempo = 0
@@ -303,9 +308,17 @@ while True:
             Etapa = "Step 03"
 
     elif Etapa == "Step 03":
+        Registrador_de_informacoes[5] = 1
 
         print(f"WIP")
         sleep_ms(2000)
         Etapa = "Step 00"
-        
-        
+
+"""
+
+adição final de informações desnessárias, mas caso seja utilizado numa futura melhoria,
+
+como por exemplo:
+adição da continuação e dsaber quais etapas estão ocorrendo, atualmente, a idéia é usar uma lista que recebe valores constanmente
+assim, consigo definir o que cada nível lógico significa, no meu atual código.
+"""
