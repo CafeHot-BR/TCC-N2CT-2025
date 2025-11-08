@@ -15,7 +15,7 @@ import ds18x20
 ---------------------------------
 Botão On/Off  ---------> I-25
 Sensor_Temperatura01 --> I-34
-Sensor_Temperatira02 --> O-02
+Sensor_Temperatira02 --> I-02
 Echo Sensor Óleo ------> I-14
 Trigger Sensor Óleo ---> O-23
 Echo Sensor Mistura ---> I-26
@@ -47,15 +47,9 @@ Sistema_despause = ""
 Botao_on_off        = Pin(25, Pin.IN, Pin.PULL_DOWN)
 Echo_Sensor_Oleo    = Pin(14, Pin.IN)
 Echo_Sensor_Mistura = Pin(26, Pin.IN)
-#Sensor_Temperatura1 = Pin(02, Pin.IN)
-#Sensor_Temperatura2 = Pin(34, Pin.IN)
-
-# // Declarar entrada analógica //
-
+Sensor_Temperatura1 = machine.Pin(02)
+Sensor_Temperatura2 = machine.Pin(34)
 Analog_agua         = ADC(Pin(33))
-
-pin = machine.Pin(32)
-
 
 #   // Declarar saídas //
 
@@ -67,7 +61,6 @@ Motor_Mistura01     = Pin(22, Pin.OUT)
 Motor_Mistura02     = Pin(19, Pin.OUT)
 Resistencia_mis01   = Pin(4, Pin.OUT)
 Resistência_Mist02  = Pin(18, Pin.OUT)
-# Servo_motor_soda    = PWM(Pin(32), freq=50) Foi desativado temporáriamente
 
 # // Forçar todas as váriaveis em zero //
 
@@ -82,15 +75,21 @@ Motor_Mistura02.value(1)
 
 
 # // Definir barramento do Sensor de temperatura
+#pin= = machine.Pin(32) foi movido mais acima e modificado 
 
-ow = onewire.OneWire(pin) #Define o barramento do OneWire
-ds = ds18x20.DS18X20(ow) #Inicializa o sensor 
+ow1 = onewire.OneWire(Sensor_Temperatura1) #Define o barramento do OneWire
+ds1 = ds18x20.DS18X20(ow1) #Inicializa o sensor 
 
+ow2 = onewire.OneWire(Sensor_Temperatura2)
+ds2 = ds18x20.DS18X20(ow2)
 
 #Procura o sensor, pois podem haver mais de um no sistema
 
-roms = ds.scan()
-print('Sensores encontrados:', roms)
+roms1 = ds1.scan()
+roms2 = ds2.scan()
+
+print('Sensores encontrados:', roms1)
+print('Sensores encontrados:', roms2)
 print(f"Programa TCC - TCN2 - Iniciado")
 
 while True:
@@ -198,7 +197,7 @@ while True:
                 
                 sleep_ms(350)
 
-                if quantidade_oleo >= Valor_ideal_oleo and leitura_agua = True:
+                if quantidade_oleo >= Valor_ideal_oleo and leitura_agua == True:
 
                     print(f"As medidas estão ok, indo para próxima etapa:")
                     medições_ok = True
@@ -219,7 +218,7 @@ while True:
         distancia_mistura = ((duracao_mistura * 0.0343) / 2)
         quantidade_mistura = (distancia_mistura) * ((27 * 22.6) * 3.1415) #Medir reservatório de --
         
-        if quantidade_soda = "Algum valor ideal":
+        if quantidade_soda == "Algum valor ideal":
             Bomba_Agua.value(1)
             print(f"Processo bombeamento de água: Concluído")
             Status_Sistema = "Despejando Soda"
@@ -228,11 +227,11 @@ while True:
             
             Motor_mistura01.value(0)
             
-            ds.convert_temp()         # Inicia a conversão de temperatura
+            ds1.convert_temp()         # Inicia a conversão de temperatura
             time.sleep_ms(750)        # Aguarda a conversão (750ms é o tempo típico)
 
-            for rom in roms:
-                temp = ds.read_temp(rom)  # Lê a temperatura do sensor
+            for rom in roms1:
+                temp = ds1.read_temp(rom)  # Lê a temperatura do sensor
                 print('Temperatura:', temp, '°C')
     
                 time.sleep(2)
@@ -240,11 +239,11 @@ while True:
 
             if temp <= 40:
 
-                Resistencia_mis01.value(1)
+                Resistencia_mis01.value(0)
 
             elif temp >= 40:
             
-                Resistencia_mis01.value(0)
+                Resistencia_mis01.value(1)
             
 
             Botao_on__off = Botao_on_off.value()
@@ -252,6 +251,7 @@ while True:
             if Botao_on__off == 1:
                 print(f"Processo de Soda concluído")
                 Motor_mistura01.value(1)
+                Resistencia_mis01.value(1)
                 Status_Sistema = "Processo Soda concluído"
                 Etapa = "Step 02"
         
@@ -287,9 +287,22 @@ while True:
                 # Falta realizar a lógica dos termômetros
                 sleep_ms(1)
                 tempo += 1
-            
+                ds2.convert_temp()         # Inicia a conversão de temperatura
+                time.sleep_ms(750)        # Aguarda a conversão (750ms é o tempo típico)
+
+                for rom in roms2:
+                    temp = ds2.read_temp(rom)  # Lê a temperatura do sensor
+                    print('Temperatura:', temp, '°C')
+                    time.sleep(2)
+                
+                if temp <= 40:
+                    Resistencia_mis02.value(0)
+                
+                elif temp >= 40:
+                    Resistencia_mis01.value(1)
             
             Motor_Mistura02.value(1)
+            Resistencia_mis01.value(1)
             Status_Sistema = "Processo OUT"
             Etapa = "Step 03"
 
@@ -298,11 +311,3 @@ while True:
         print(f"WIP")
         sleep_ms(2000)
         Etapa = "Step 00"
-        
-        
-"""
-Este espaço está para projetos a parte e testes
-
-Será necessário adicionar um novo sensor ultrassônico para identificar a primeira mistura
-
-"""
