@@ -5,30 +5,28 @@ from machine import PWM
 from machine import Timer
 from machine import ADC
 import time
-"""
 import machine
 import onewire
 import ds18x20
-"""
 
 """
     // Entradas e saídas //
 
 ---------------------------------
 Botão On/Off  ---------> I-25
-Echo Sensor Água ------> I-34
-Trigger Sensor ÁGUA ---> O-02
+Sensor_Temperatura01 --> I-34
+Sensor_Temperatira02 --> O-02
 Echo Sensor Óleo ------> I-14
 Trigger Sensor Óleo ---> O-23
-Echo Sensor Soda ------> I-26
-Trigger Sensor Soda ---> O-27
+Echo Sensor Mistura ---> I-26
+Trigger Sensor Mistura > O-27
 Analog_agua -----------> I-33
 Bomba_Agua ------------> O-13
-Servo_motor -----------> O-32
-Motor_Mistura01 -------> O-22
-Resistência_Mist01 ----> O-04
 Bomba_Mistura01 -------> O-21
+> O-32
+Motor_Mistura01 -------> O-22
 Motor_Mistura02 -------> O-19
+Resistência_Mist01 ----> O-04
 Resistência_Mist02 ----> O-18
 ---------------------------------
 
@@ -40,7 +38,6 @@ Temporizador = [0]
 Etapa = "Step 00"
 Valor_ideal_agua = 2000
 Valor_ideal_oleo = 10000
-Valor_ideal_soda = 10000
 tempo_agua = 10000
 sequencia_despejar = 5
 Sistema_despause = ""
@@ -49,44 +46,43 @@ Sistema_despause = ""
 
 Botao_on_off        = Pin(25, Pin.IN, Pin.PULL_DOWN)
 Echo_Sensor_Oleo    = Pin(14, Pin.IN)
-Echo_Sensor_Soda    = Pin(27, Pin.IN)
-Echo_Sensor_Agua    = Pin(34, Pin.IN)
-Sensor_Temperatura1 = Pin(32, Pin.IN)
-Sensor_Temperatura2 = Pin(35, Pin.IN)
+Echo_Sensor_Mistura = Pin(26, Pin.IN)
+#Sensor_Temperatura1 = Pin(02, Pin.IN)
+#Sensor_Temperatura2 = Pin(34, Pin.IN)
 
 # // Declarar entrada analógica //
 
 Analog_agua         = ADC(Pin(33))
 
-"""
-pin = machine.Pin(34)
-"""
+pin = machine.Pin(32)
+
 
 #   // Declarar saídas //
 
-Trigger_Sensor_Agua = Pin(2, Pin.OUT)
 Trigger_Sensor_Oleo = Pin(23, Pin.OUT)
-Trigger_Sensor_Soda = Pin(27, Pin.OUT)
+Trigger_Sensor_Mistura = Pin(27, Pin.OUT)
 Bomba_Agua          = Pin(13, Pin.OUT)
-Bomba_mistura01     = Pin(22, Pin.OUT)
-Resistencia_mis01   = Pin(4, Pin.OUT)
-Bomba_Mistura02     = Pin(21, Pin.OUT)
+Bomba_Mistura01     = Pin(21, Pin.OUT)
+Motor_Mistura01     = Pin(22, Pin.OUT)
 Motor_Mistura02     = Pin(19, Pin.OUT)
+Resistencia_mis01   = Pin(4, Pin.OUT)
 Resistência_Mist02  = Pin(18, Pin.OUT)
 # Servo_motor_soda    = PWM(Pin(32), freq=50) Foi desativado temporáriamente
 
 # // Forçar todas as váriaveis em zero //
 
-Trigger_oleo = Trigger_Sensor_Oleo.value(0)
-Trigger_soda = Trigger_Sensor_Soda.value(0)
-Bomba_Agua.value(0)
-Resistência_Mist02.value(0)
-Bomba_mistura01.value(0)
-Motor_Mistura02.value(0)
+Trigger_Sensor_Oleo.value(0)
+Trigger_Sensor_Mistura.value(0)
+Bomba_Agua.value(1)
+Bomba_mistura01.value(1)
+Resistência_Mist01.value(1)
+Resistência_Mist02.value(1)
+Motor_Mistura01.value(1)
+Motor_Mistura02.value(1)
+
 
 # // Definir barramento do Sensor de temperatura
 
-"""
 ow = onewire.OneWire(pin) #Define o barramento do OneWire
 ds = ds18x20.DS18X20(ow) #Inicializa o sensor 
 
@@ -95,16 +91,15 @@ ds = ds18x20.DS18X20(ow) #Inicializa o sensor
 
 roms = ds.scan()
 print('Sensores encontrados:', roms)
-
-"""
-
 print(f"Programa TCC - TCN2 - Iniciado")
 
 while True:
 
     Botao_on__off = Botao_on_off.value()
 
+
     if Botao_on__off == 1 and Etapa == "Step 00" :
+        sleep_ms(200)
         print(f"O sistema está iniciando")
         sleep_ms(200)
         Status_Sistema = "On"
@@ -173,16 +168,6 @@ while True:
 
                 sleep_ms(350)
 
-                Trigger_soda = Trigger_Sensor_Soda(1)
-                time.sleep_ms(10)
-                Trigger_soda = Trigger_Sensor_Soda(0)
-
-                duracao_soda = time_pulse_us(Echo_Sensor_Soda, 1)
-                distancia_soda = ((duracao_soda * 0.0343) / 2)
-                quantidade_soda = (distancia_soda) * ((27 * 22.6) * 3.1415) #Medir reservatório de Soda
-
-                print('Quantidade de soda: {:.2f}ml'.format(quantidade_soda))
-
                 Botao_on__off = Botao_on_off.value()
                 Sistema_despause = 0
 
@@ -201,30 +186,19 @@ while True:
 
                 leitura_agua = Analog_agua.read()
 
-                # Lembrar de colocar sensor de mistura
+                if leitura_agua != 0:
+                    leitura_agua = True
+                else:
+                    leitura_agua = False
                 
                 print(f"Quantidade de água: {leitura_agua}ml")
 
                 Botao_on__off = Botao_on_off.value()
                 Sistema_despause = 0
-
-                if Botao_on__off == 1:
-
-                    sleep_ms(400)
-                    print(f"Sistema pausado...")
-                    sleep_ms(400)
-                
-                    while Sistema_despause != 1:
-
-                        print(f"Para despausar o código, aperte novamente o botão")
-
-                        Sistema_despause = Botao_on_off.value()
-
-
                 
                 sleep_ms(350)
 
-                if quantidade_oleo >= Valor_ideal_oleo and quantidade_soda >= Valor_ideal_soda and leitura_agua >= Valor_ideal_agua:
+                if quantidade_oleo >= Valor_ideal_oleo and leitura_agua = True:
 
                     print(f"As medidas estão ok, indo para próxima etapa:")
                     medições_ok = True
@@ -235,29 +209,25 @@ while True:
 
         print(f"Iniciando Ligamento das bombas")
         
-        Bomba_Agua.value(1)
-        sleep_ms(tempo_agua)
         Bomba_Agua.value(0)
+        Trigger_Sensor_Mistura(1)
+        time.sleep_ms(10)
+        Trigger_Sensor_Mistura(0)
+#Só verifique depois, se remover a variavel = triger on/off muda alguma coisa
+        
+        duracao_mistura = time_pulse_us(Echo_Sensor_Mistura, 1)
+        distancia_mistura = ((duracao_mistura * 0.0343) / 2)
+        quantidade_mistura = (distancia_mistura) * ((27 * 22.6) * 3.1415) #Medir reservatório de --
+        
+        if quantidade_soda = "Algum valor ideal":
+            Bomba_Agua.value(1)
+            print(f"Processo bombeamento de água: Concluído")
+            Status_Sistema = "Despejando Soda"
 
-        print(f"Processo bombeamento de água: Concluído")
-
-        Status_Sistema = "Despejando Soda"
-
-        while Status_Sistema == "Despejando Soda":
+        while Status_Sistema == "Despejando Soda, após concluir aperte botão inciar":
             
-            Bomba_mistura01.value(1)
-
-            Trigger_soda = Trigger_Sensor_Soda(1)
-            time.sleep_ms(10)
-            Trigger_soda = Trigger_Sensor_Soda(0)
-
-            duracao_soda = time_pulse_us(Echo_Sensor_Soda, 1)
-            distancia_soda = ((duracao_soda * 0.0343) / 2)
-            quantidade_soda = (distancia_soda) * (22 * 3.1415) # Conta medição de Soda
-
-            print(f"Medição foi de: {quantidade_soda}")
-
-            """
+            Motor_mistura01.value(0)
+            
             ds.convert_temp()         # Inicia a conversão de temperatura
             time.sleep_ms(750)        # Aguarda a conversão (750ms é o tempo típico)
 
@@ -275,54 +245,40 @@ while True:
             elif temp >= 40:
             
                 Resistencia_mis01.value(0)
-            """
+            
 
             Botao_on__off = Botao_on_off.value()
-            Sistema_despause = 0
-
+            
             if Botao_on__off == 1:
-
-                sleep_ms(400)
-                print(f"Sistema pausado...")
-                
-                while Sistema_despause != 1:
-
-                    print(f"Para despausar o código, aperte novamente o botão")
-
-                    Sistema_despause = Botao_on_off.value()
-
-
-            if quantidade_soda >= 14000:
-                
-                """
-                # Mover servo para posição 0
-                Servo_motor_soda.duty(40)
-                sleep_ms(800)
-                # Mover servo para posição máxima
-                Servo_motor_soda.duty(77)
-                sleep_ms(800)
-                """
-
-            elif quantidade_soda <= 14000: #Limite de Soda para término do despejamento
-
-                Bomba_mistura01.value(0)
+                print(f"Processo de Soda concluído")
+                Motor_mistura01.value(1)
                 Status_Sistema = "Processo Soda concluído"
                 Etapa = "Step 02"
-                print(f"Processo de despejamento de Soda: Concluído")
         
     elif Etapa == "Step 02":
         
         print(f"Etapa 02 iniciada")
         
-        Bomba_Mistura02.value(1)
-        sleep_ms(10000)
         Bomba_Mistura02.value(0)
-        
+        Trigger_oleo = Trigger_Sensor_Oleo(1)
+        time.sleep_ms(10)
+        Trigger_oleo = Trigger_Sensor_Oleo(0)
+
+        duracao_oleo = time_pulse_us(Echo_Sensor_Oleo, 1)
+        distancia_oleo = ((duracao_oleo * 0.0343) / 2)
+        quantidade_oleo = ((distancia_oleo) * (27 * 22.6))
+        if quantidade_oleo == "Algum valor ideal":
+            Bomba_Mistura02.value(1)
+            Status_Sistema = "Processo Soda concluído"
+            
+        else:
+            Status_Sistema = "Aguardando processo da bomba"
+
         if Status_Sistema == "Processo Soda concluído":
             
             print(f"Iniciando Processo de Mistura!")
 
-            Motor_Mistura02.value(1)
+            Motor_Mistura02.value(0)
             tempo = 0
             
             
@@ -332,7 +288,8 @@ while True:
                 sleep_ms(1)
                 tempo += 1
             
-            Motor_Mistura02.value(0)
+            
+            Motor_Mistura02.value(1)
             Status_Sistema = "Processo OUT"
             Etapa = "Step 03"
 
@@ -341,3 +298,11 @@ while True:
         print(f"WIP")
         sleep_ms(2000)
         Etapa = "Step 00"
+        
+        
+"""
+Este espaço está para projetos a parte e testes
+
+Será necessário adicionar um novo sensor ultrassônico para identificar a primeira mistura
+
+"""
