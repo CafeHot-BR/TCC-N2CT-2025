@@ -40,7 +40,7 @@ Valor_ideal_agua = 2000
 Valor_ideal_oleo = 10000
 tempo_agua = 10000
 sequencia_despejar = 5
-Sistema_despause = ""
+Sistema_despause = 0
 
 #  // Declarar entradas //
 
@@ -59,17 +59,17 @@ Bomba_Agua          = Pin(13, Pin.OUT)
 Bomba_Mistura01     = Pin(21, Pin.OUT)
 Motor_Mistura01     = Pin(22, Pin.OUT)
 Motor_Mistura02     = Pin(19, Pin.OUT)
-Resistencia_mis01   = Pin(4, Pin.OUT)
-Resistência_Mist02  = Pin(18, Pin.OUT)
+Resistencia_Mist01  = Pin(4, Pin.OUT)
+Resistencia_Mist02  = Pin(18, Pin.OUT)
 
 # // Forçar todas as váriaveis em zero //
 
 Trigger_Sensor_Oleo.value(0)
 Trigger_Sensor_Mistura.value(0)
 Bomba_Agua.value(1)
-Bomba_mistura01.value(1)
-Resistência_Mist01.value(1)
-Resistência_Mist02.value(1)
+Bomba_Mistura01.value(1)
+Resistencia_Mist01.value(1)
+Resistencia_Mist02.value(1)
 Motor_Mistura01.value(1)
 Motor_Mistura02.value(1)
 
@@ -139,11 +139,9 @@ while True:
 
                         Sistema_despause = Botao_on_off.value()
 
-
-
-                Trigger_oleo = Trigger_Sensor_Oleo(1)
+                Trigger_Sensor_Oleo.value(1)
                 time.sleep_ms(10)
-                Trigger_oleo = Trigger_Sensor_Oleo(0)
+                Trigger_Sensor_Oleo.value(0)
 
                 duracao_oleo = time_pulse_us(Echo_Sensor_Oleo, 1)
                 distancia_oleo = ((duracao_oleo * 0.0343) / 2)
@@ -190,7 +188,7 @@ while True:
                 else:
                     leitura_agua = False
                 
-                print(f"Quantidade de água: {leitura_agua}ml")
+                print(f"A água se encontra em: {leitura_agua}")
 
                 Botao_on__off = Botao_on_off.value()
                 Sistema_despause = 0
@@ -209,23 +207,23 @@ while True:
         print(f"Iniciando Ligamento das bombas")
         
         Bomba_Agua.value(0)
-        Trigger_Sensor_Mistura(1)
+        Trigger_Sensor_Mistura.value(1)
         time.sleep_ms(10)
-        Trigger_Sensor_Mistura(0)
+        Trigger_Sensor_Mistura.value(0)
 #Só verifique depois, se remover a variavel = triger on/off muda alguma coisa
         
         duracao_mistura = time_pulse_us(Echo_Sensor_Mistura, 1)
         distancia_mistura = ((duracao_mistura * 0.0343) / 2)
         quantidade_mistura = (distancia_mistura) * ((27 * 22.6) * 3.1415) #Medir reservatório de --
         
-        if quantidade_soda == "Algum valor ideal":
+        if quantidade_mistura == 0: #Depois adicionar número real...
             Bomba_Agua.value(1)
             print(f"Processo bombeamento de água: Concluído")
             Status_Sistema = "Despejando Soda"
 
         while Status_Sistema == "Despejando Soda, após concluir aperte botão inciar":
             
-            Motor_mistura01.value(0)
+            Motor_Mistura01.value(0)
             
             ds1.convert_temp()         # Inicia a conversão de temperatura
             time.sleep_ms(750)        # Aguarda a conversão (750ms é o tempo típico)
@@ -236,22 +234,20 @@ while True:
     
                 time.sleep(2)
             
-
             if temp <= 40:
 
-                Resistencia_mis01.value(0)
+                Resistencia_Mist01.value(0)
 
-            elif temp >= 40:
-            
-                Resistencia_mis01.value(1)
+            else:
+                Resistencia_Mist01.value(1)
             
 
             Botao_on__off = Botao_on_off.value()
             
             if Botao_on__off == 1:
                 print(f"Processo de Soda concluído")
-                Motor_mistura01.value(1)
-                Resistencia_mis01.value(1)
+                Motor_Mistura01.value(1)
+                Resistencia_Mist01.value(1)
                 Status_Sistema = "Processo Soda concluído"
                 Etapa = "Step 02"
         
@@ -259,16 +255,17 @@ while True:
         
         print(f"Etapa 02 iniciada")
         
-        Bomba_Mistura02.value(0)
-        Trigger_oleo = Trigger_Sensor_Oleo(1)
+        Bomba_Mistura01.value(0)
+        Trigger_Sensor_Oleo.value(1)
         time.sleep_ms(10)
-        Trigger_oleo = Trigger_Sensor_Oleo(0)
+        Trigger_Sensor_Oleo.value(0)
 
         duracao_oleo = time_pulse_us(Echo_Sensor_Oleo, 1)
         distancia_oleo = ((duracao_oleo * 0.0343) / 2)
         quantidade_oleo = ((distancia_oleo) * (27 * 22.6))
-        if quantidade_oleo == "Algum valor ideal":
-            Bomba_Mistura02.value(1)
+        
+        if quantidade_oleo == 0: #Depois alterar para número ideal...
+            Bomba_Mistura01.value(1)
             Status_Sistema = "Processo Soda concluído"
             
         else:
@@ -281,7 +278,6 @@ while True:
             Motor_Mistura02.value(0)
             tempo = 0
             
-            
             while tempo <= 10000: #Define o tempo do cronômetro sem pausar o código por muito tempo
 
                 # Falta realizar a lógica dos termômetros
@@ -293,16 +289,16 @@ while True:
                 for rom in roms2:
                     temp = ds2.read_temp(rom)  # Lê a temperatura do sensor
                     print('Temperatura:', temp, '°C')
-                    time.sleep(2)
+                    time.sleep_ms(300)
                 
                 if temp <= 40:
-                    Resistencia_mis02.value(0)
+                    Resistencia_Mist02.value(0)
                 
-                elif temp >= 40:
-                    Resistencia_mis01.value(1)
+                else:
+                    Resistencia_Mist02.value(1)
             
             Motor_Mistura02.value(1)
-            Resistencia_mis01.value(1)
+            Resistencia_Mist02.value(1)
             Status_Sistema = "Processo OUT"
             Etapa = "Step 03"
 
@@ -311,3 +307,5 @@ while True:
         print(f"WIP")
         sleep_ms(2000)
         Etapa = "Step 00"
+        
+        
