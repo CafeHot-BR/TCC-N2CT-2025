@@ -1,324 +1,228 @@
-       fw
-from time import sleep_ms
-from machine import Pin, time_pulse_us, ADC
-from machine import PWM
-from machine import Timer
-from machine import ADC
-import time
-import machine
-import onewire
-import ds18x20
-
-"""
-    // Entradas e saídas //
-
----------------------------------
-Botão On/Off  ---------> I-25
-Sensor_Temperatura01 --> I-34
-Sensor_Temperatira02 --> I-02
-Echo Sensor Óleo ------> I-14
-Trigger Sensor Óleo ---> O-23
-Echo Sensor Mistura ---> I-26
-Trigger Sensor Mistura > O-27
-Analog_agua -----------> I-33
-Bomba_Agua ------------> O-13
-Bomba_Mistura01 -------> O-21
-> O-32
-Motor_Mistura01 -------> O-22
-Motor_Mistura02 -------> O-19
-Resistência_Mist01 ----> O-04
-Resistência_Mist02 ----> O-18
----------------------------------
-
-"""
-
-# // Declaração de váriaveis iniciais //
-Registrador_de_informacoes = [0, 0, 0, 0, 0, 0]
-
-Temporizador = [0]
-Etapa = "Step 00"
-Valor_ideal_agua = 2000
-Valor_ideal_oleo = 10000
-tempo_agua = 10000
-sequencia_despejar = 5
-Sistema_despause = 0
-
-#  // Declarar entradas //
-
-Botao_on_off        = Pin(25, Pin.IN, Pin.PULL_DOWN)
-Echo_Sensor_Oleo    = Pin(14, Pin.IN)
-Echo_Sensor_Mistura = Pin(26, Pin.IN)
-Sensor_Temperatura1 = machine.Pin(02)
-Sensor_Temperatura2 = machine.Pin(34)
-Analog_agua         = ADC(Pin(33))
-
-#   // Declarar saídas //
-
-Trigger_Sensor_Oleo = Pin(23, Pin.OUT)
-Trigger_Sensor_Mistura = Pin(27, Pin.OUT)
-Bomba_Agua          = Pin(13, Pin.OUT)
-Bomba_Mistura01     = Pin(21, Pin.OUT)
-Motor_Mistura01     = Pin(22, Pin.OUT)
-Motor_Mistura02     = Pin(19, Pin.OUT)
-Resistencia_Mist01  = Pin(4, Pin.OUT)
-Resistencia_Mist02  = Pin(18, Pin.OUT)
+/* ============================================================
+   ===================== DEFINIÇÃO DE PINOS ====================
+   ============================================================*/
+
+// === ENTRADAS ===
+#define BOTAO_ON_OFF        2      // Pull-down físico no protoboard
+#define SENSOR_TEMP_1       0      // Sem uso
+#define SENSOR_TEMP_2       0      // Sem uso
+#define ECHO_OLEO           13
+#define ECHO_MISTURA        11
+#define ANALOG_AGUA         A0
+
+// === SAÍDAS ===
+#define TRIGGER_OLEO        12
+#define TRIGGER_MISTURA     10
+#define BOMBA_AGUA          9
+#define BOMBA_MISTURA01     8
+#define MOTOR_MISTURA01     7
+#define MOTOR_MISTURA02     6
+#define RESISTENCIA_1       5
+#define RESISTENCIA_2       4
+
+/* ============================================================
+                       VARIÁVEIS DO SISTEMA
+   ============================================================*/
+
+String Etapa = "Step 00";
+int Registro[6] = {0};
+
+unsigned long ultimoClique = 0;
+
+/* ============================================================
+                     LEITURA DO BOTÃO (DEBOUNCE)
+   ============================================================*/
+bool lerBotao() {
+    if (digitalRead(BOTAO_ON_OFF) == HIGH && millis() - ultimoClique > 350) {
+        ultimoClique = millis();
+        return true;
+    }
+    return false;
+}
+
+/* ============================================================
+                   FUNÇÃO DE MEDIR ULTRASSOM
+   ============================================================*/
+float medirUltrassom(int trig, int echo) {
+
+    digitalWrite(trig, LOW);
+    delayMicroseconds(3);
+    digitalWrite(trig, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(trig, LOW);
+
+    long duracao = pulseIn(echo, HIGH, 30000);
+
+    if (duracao == 0) return 0;
+
+    return (duracao * 0.0343) / 2.0;
+}
+
+/* ============================================================
+                             SETUP
+   ============================================================*/
+
+void setup() {
+    Serial.begin(115200);
+
+    // Entradas
+    pinMode(BOTAO_ON_OFF, INPUT);
+    pinMode(ECHO_OLEO, INPUT);
+    pinMode(ECHO_MISTURA, INPUT);
+    pinMode(ANALOG_AGUA, INPUT);
+
+    // Saídas
+    pinMode(TRIGGER_OLEO, OUTPUT);
+    pinMode(TRIGGER_MISTURA, OUTPUT);
+    pinMode(BOMBA_AGUA, OUTPUT);
+    pinMode(BOMBA_MISTURA01, OUTPUT);
+    pinMode(MOTOR_MISTURA01, OUTPUT);
+    pinMode(MOTOR_MISTURA02, OUTPUT);
+    pinMode(RESISTENCIA_1, OUTPUT);
+    pinMode(RESISTENCIA_2, OUTPUT);
+
+    // Inicializa tudo desligado
+    digitalWrite(TRIGGER_OLEO, LOW);
+    digitalWrite(TRIGGER_MISTURA, LOW);
+    digitalWrite(BOMBA_AGUA, HIGH);
+    digitalWrite(BOMBA_MISTURA01, HIGH);
+    digitalWrite(MOTOR_MISTURA01, HIGH);
+    digitalWrite(MOTOR_MISTURA02, HIGH);
+    digitalWrite(RESISTENCIA_1, HIGH);
+    digitalWrite(RESISTENCIA_2, HIGH);
+
+    Serial.println("Sistema TCC iniciado – Tinkercad Input Map OK");
+}
+
+/* ============================================================
+                   ETAPA 00 – INICIALIZAÇÃO
+   ============================================================*/
+void step00() {
+
+    if (lerBotao()) {
 
-# // Forçar todas as váriaveis em zero //
+        Registro[0] = 1;
+        Serial.println("Sistema iniciando...");
+        delay(500);
 
-Trigger_Sensor_Oleo.value(0)
-Trigger_Sensor_Mistura.value(0)
-Bomba_Agua.value(1)
-Bomba_Mistura01.value(1)
-Resistencia_Mist01.value(1)
-Resistencia_Mist02.value(1)
-Motor_Mistura01.value(1)
-Motor_Mistura02.value(1)
+        bool medidasOK = false;
 
+        while (!medidasOK) {  // Corrigido de measuresOK para medidasOK
 
-# // Definir barramento do Sensor de temperatura
-#pin= = machine.Pin(32) foi movido mais acima e modificado 
+            // pausa
+            if (lerBotao()) {
+                Serial.println("Sistema PAUSADO – Aperte o botão para continuar");
+                while (!lerBotao()) delay(80);
+            }
 
-ow1 = onewire.OneWire(Sensor_Temperatura1) #Define o barramento do OneWire
-ds1 = ds18x20.DS18X20(ow1) #Inicializa o sensor 
+            Serial.println("Medições iniciadas...");
 
-ow2 = onewire.OneWire(Sensor_Temperatura2)
-ds2 = ds18x20.DS18X20(ow2)
+            // Medição do óleo
+            float oleo = medirUltrassom(TRIGGER_OLEO, ECHO_OLEO);
+            oleo = 10000; // FIXO, igual seu MicroPython
+            Serial.print("Óleo: ");
+            Serial.println(oleo);
 
-#Procura o sensor, pois podem haver mais de um no sistema
+            // Medição da água
+            bool agua = (analogRead(ANALOG_AGUA) > 50);
+            Serial.print("Água detectada: ");
+            Serial.println(agua ? "SIM" : "NÃO");
 
-roms1 = ds1.scan()
-roms2 = ds2.scan()
+            if (oleo >= 10000 && agua) {
+                Serial.println("Medições OK → Indo para Step 01");
+                Registro[1] = 1;
+                Etapa = "Step 01";
+                medidasOK = true;
+            }
 
-print('Sensores encontrados:', roms1)
-print('Sensores encontrados:', roms2)
-print(f"Programa TCC - TCN2 - Iniciado")
+            delay(400);
+        }
+    }
+}
 
-while True:
+/* ============================================================
+            ETAPA 01 – LIGAMENTO DAS BOMBAS + SODA
+   ============================================================*/
 
-    Botao_on__off = Botao_on_off.value()
+void step01() {
 
+    Serial.println("ETAPA 01 – Ligamento das Bombas");
+    digitalWrite(BOMBA_AGUA, LOW);
 
-    if Botao_on__off == 1 and Etapa == "Step 00" :
-        Registrador_de_informacoes[0] = 1
-        sleep_ms(200)
-        print(f"O sistema está iniciando")
-        sleep_ms(200)
-        Status_Sistema = "On"
-        medições_ok = False
+    float mistura = medirUltrassom(TRIGGER_MISTURA, ECHO_MISTURA);
 
-        while Status_Sistema == "On":
+    if (mistura == 0) {
+        digitalWrite(BOMBA_AGUA, HIGH);
+        Serial.println("Bombeamento de água concluído.");
+    }
 
-            print(f"Iniciando Medição de ingredientes")
+    digitalWrite(MOTOR_MISTURA01, LOW);
+    Registro[2] = 1;
 
-            # Iniciando Medição Água
+    Serial.println("Processo de Soda – Aguarde e aperte o botão ao concluir...");
 
-            Botao_on__off = Botao_on_off.value()
+    while (true) {
+        if (lerBotao()) {
+            digitalWrite(MOTOR_MISTURA01, HIGH);
+            Serial.println("Processo de Soda concluído!");
+            Etapa = "Step 02";
+            return;
+        }
+        delay(200);
+    }
+}
 
-            if Botao_on__off == 1:
+/* ============================================================
+             ETAPA 02 – MISTURA FINAL (10 segundos)
+   ============================================================*/
 
-                sleep_ms(400)
-                print(f"Sistema pausado...")
-                
-                while Sistema_despause != 1:
+void step02() {
 
-                    print(f"Para despausar o código, aperte novamente o botão")
+    Serial.println("ETAPA 02 – Mistura final");
+    Registro[3] = 1;
 
-                    Sistema_despause = Botao_on_off.value()
-         
-            while medições_ok == False:
-                
-                Botao_on__off = Botao_on_off.value()
-                Sistema_despause = 0
+    digitalWrite(BOMBA_MISTURA01, LOW);
+    float oleo = medirUltrassom(TRIGGER_OLEO, ECHO_OLEO);
 
-                if Botao_on__off == 1:
+    if (oleo == 0) {
+        digitalWrite(BOMBA_MISTURA01, HIGH);
+    }
 
-                    sleep_ms(400)
-                    print(f"Sistema pausado...")
-                
-                    while Sistema_despause != 1:
+    Registro[4] = 1;
 
-                        print(f"Para despausar o código, aperte novamente o botão")
+    digitalWrite(MOTOR_MISTURA02, LOW);
 
-                        Sistema_despause = Botao_on_off.value()
+    unsigned long inicio = millis();
+    while (millis() - inicio < 10000) {
+        Serial.println("Misturando...");
+        delay(300);
+    }
 
-                Trigger_Sensor_Oleo.value(1)
-                time.sleep_ms(10)
-                Trigger_Sensor_Oleo.value(0)
+    digitalWrite(MOTOR_MISTURA02, HIGH);
 
-                duracao_oleo = time_pulse_us(Echo_Sensor_Oleo, 1)
-                distancia_oleo = ((duracao_oleo * 0.0343) / 2)
-                quantidade_oleo = ((distancia_oleo) * (27 * 22.6))
+    Etapa = "Step 03";
+}
 
-                print('Quantidade de óleo: {:.2f}ml'.format(quantidade_oleo))
+/* ============================================================
+                     ETAPA 03 – FINAL / RESET
+   ============================================================*/
 
-                Botao_on__off = Botao_on_off.value()
-                Sistema_despause = 0
+void step03() {
 
-                if Botao_on__off == 1:
-
-                    sleep_ms(400)
-                    print(f"Sistema pausado...")
-                
-                    while Sistema_despause != 1:
-
-                        print(f"Para despausar o código, aperte novamente o botão")
-
-                        Sistema_despause = Botao_on_off.value()
-
-                sleep_ms(350)
-
-                Botao_on__off = Botao_on_off.value()
-                Sistema_despause = 0
-
-                if Botao_on__off == 1:
-
-                    sleep_ms(400)
-                    print(f"Sistema pausado...")
-                
-                    while Sistema_despause != 1:
-
-                        print(f"Para despausar o código, aperte novamente o botão")
-
-                        Sistema_despause = Botao_on_off.value()
-
-                sleep_ms(350)
-
-                leitura_agua = Analog_agua.read()
-
-                if leitura_agua != 0:
-                    leitura_agua = True
-                else:
-                    leitura_agua = False
-                
-                print(f"A água se encontra em: {leitura_agua}")
-
-                Botao_on__off = Botao_on_off.value()
-                Sistema_despause = 0
-                
-                sleep_ms(350)
-
-                if quantidade_oleo >= Valor_ideal_oleo and leitura_agua == True:
-
-                    print(f"As medidas estão ok, indo para próxima etapa:")
-                    medições_ok = True
-                    Status_Sistema = "Next Step"
-                    Etapa = "Step 01"
-                    Registrador_de_informacoes[1] = 1
-
-    elif Etapa == "Step 01":
-
-        print(f"Iniciando Ligamento das bombas")
-        
-        Bomba_Agua.value(0)
-        Trigger_Sensor_Mistura.value(1)
-        time.sleep_ms(10)
-        Trigger_Sensor_Mistura.value(0)
-#Só verifique depois, se remover a variavel = triger on/off muda alguma coisa
-        
-        duracao_mistura = time_pulse_us(Echo_Sensor_Mistura, 1)
-        distancia_mistura = ((duracao_mistura * 0.0343) / 2)
-        quantidade_mistura = (distancia_mistura) * ((27 * 22.6) * 3.1415) #Medir reservatório de --
-        
-        if quantidade_mistura == 0: #Depois adicionar número real...
-            Bomba_Agua.value(1)
-            print(f"Processo bombeamento de água: Concluído")
-            Status_Sistema = "Despejando Soda"
-
-        while Status_Sistema == "Despejando Soda, após concluir aperte botão inciar":
-            
-            Motor_Mistura01.value(0)
-            Registrador_de_informacoes[2] = 1
-            ds1.convert_temp()         # Inicia a conversão de temperatura
-            time.sleep_ms(750)        # Aguarda a conversão (750ms é o tempo típico)
-
-            for rom in roms1:
-                temp = ds1.read_temp(rom)  # Lê a temperatura do sensor
-                print('Temperatura:', temp, '°C')
-    
-                time.sleep(2)
-            
-            if temp <= 40:
-
-                Resistencia_Mist01.value(0)
-
-            else:
-                Resistencia_Mist01.value(1)
-            
-
-            Botao_on__off = Botao_on_off.value()
-            
-            if Botao_on__off == 1:
-                print(f"Processo de Soda concluído")
-                Motor_Mistura01.value(1)
-                Resistencia_Mist01.value(1)
-                Status_Sistema = "Processo Soda concluído"
-                Etapa = "Step 02"
-        
-    elif Etapa == "Step 02":
-        
-        print(f"Etapa 02 iniciada")
-        Registrador_de_informacoes[3] = 1
-        
-        Bomba_Mistura01.value(0)
-        Trigger_Sensor_Oleo.value(1)
-        time.sleep_ms(10)
-        Trigger_Sensor_Oleo.value(0)
-
-        duracao_oleo = time_pulse_us(Echo_Sensor_Oleo, 1)
-        distancia_oleo = ((duracao_oleo * 0.0343) / 2)
-        quantidade_oleo = ((distancia_oleo) * (27 * 22.6))
-        
-        if quantidade_oleo == 0: #Depois alterar para número ideal...
-            Bomba_Mistura01.value(1)
-            Status_Sistema = "Processo Soda concluído"
-            
-        else:
-            Status_Sistema = "Aguardando processo da bomba"
-
-        if Status_Sistema == "Processo Soda concluído":
-            
-            print(f"Iniciando Processo de Mistura!")
-            Registrador_de_informacoes[4] = 1
-
-            Motor_Mistura02.value(0)
-            tempo = 0
-            
-            while tempo <= 10000: #Define o tempo do cronômetro sem pausar o código por muito tempo
-
-                # Falta realizar a lógica dos termômetros
-                sleep_ms(1)
-                tempo += 1
-                ds2.convert_temp()         # Inicia a conversão de temperatura
-                time.sleep_ms(750)        # Aguarda a conversão (750ms é o tempo típico)
-
-                for rom in roms2:
-                    temp = ds2.read_temp(rom)  # Lê a temperatura do sensor
-                    print('Temperatura:', temp, '°C')
-                    time.sleep_ms(300)
-                
-                if temp <= 40:
-                    Resistencia_Mist02.value(0)
-                
-                else:
-                    Resistencia_Mist02.value(1)
-            
-            Motor_Mistura02.value(1)
-            Resistencia_Mist02.value(1)
-            Status_Sistema = "Processo OUT"
-            Etapa = "Step 03"
-
-    elif Etapa == "Step 03":
-        Registrador_de_informacoes[5] = 1
-
-        print(f"WIP")
-        sleep_ms(2000)
-        Etapa = "Step 00"
-
-"""
-
-adição final de informações desnessárias, mas caso seja utilizado numa futura melhoria,
-
-como por exemplo:
-adição da continuação e dsaber quais etapas estão ocorrendo, atualmente, a idéia é usar uma lista que recebe valores constanmente
-assim, consigo definir o que cada nível lógico significa, no meu atual código.
-"""
+    Registro[5] = 1;
+    Serial.println("ETAPA 03 – Finalização...");
+    delay(1500);
+
+    Etapa = "Step 00";
+}
+
+/* ============================================================
+                        LOOP PRINCIPAL
+   ============================================================*/
+
+void loop() {
+    if (Etapa == "Step 00") step00();
+    else if (Etapa == "Step 01") step01();
+    else if (Etapa == "Step 02") step02();
+    else if (Etapa == "Step 03") step03();
+}
