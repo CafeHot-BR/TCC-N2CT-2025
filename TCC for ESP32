@@ -1,3 +1,4 @@
+
 /* ============================================================
    ===================== DEFINIÇÃO DE PINOS ====================
    ============================================================*/
@@ -119,7 +120,6 @@ void step00() {
 
             // Medição do óleo
             float oleo = medirUltrassom(TRIGGER_OLEO, ECHO_OLEO);
-            oleo = 10000; // FIXO, igual seu MicroPython
             Serial.print("Óleo: ");
             Serial.println(oleo);
 
@@ -128,7 +128,7 @@ void step00() {
             Serial.print("Água detectada: ");
             Serial.println(agua ? "SIM" : "NÃO");
 
-            if (oleo >= 10000 && agua) {
+            if (oleo >= 200 && agua) {
                 Serial.println("Medições OK → Indo para Step 01");
                 Registro[1] = 1;
                 Etapa = "Step 01";
@@ -147,27 +147,38 @@ void step00() {
 void step01() {
 
     Serial.println("ETAPA 01 – Ligamento das Bombas");
+
+    // Liga a bomba de água
     digitalWrite(BOMBA_AGUA, LOW);
 
-    float mistura = medirUltrassom(TRIGGER_MISTURA, ECHO_MISTURA);
-
-    if (mistura == 0) {
-        digitalWrite(BOMBA_AGUA, HIGH);
-        Serial.println("Bombeamento de água concluído.");
-    }
-
+    // Liga motor de mistura
     digitalWrite(MOTOR_MISTURA01, LOW);
     Registro[2] = 1;
 
     Serial.println("Processo de Soda – Aguarde e aperte o botão ao concluir...");
 
     while (true) {
+        
+        // >>>>>> LEITURA TEM QUE FICAR AQUI <<<<<<
+        float mistura = medirUltrassom(TRIGGER_MISTURA, ECHO_MISTURA);
+
+        Serial.print("Nível da mistura: ");
+        Serial.println(mistura);
+
+        // Desliga bomba quando o nível chegar em 10
+        if (mistura <= 10) {
+            digitalWrite(BOMBA_AGUA, HIGH);
+            Serial.println("Bombeamento de água concluído.");
+        }
+
+        // Finalização por botão
         if (lerBotao()) {
             digitalWrite(MOTOR_MISTURA01, HIGH);
             Serial.println("Processo de Soda concluído!");
             Etapa = "Step 02";
             return;
         }
+
         delay(200);
     }
 }
